@@ -68,7 +68,7 @@ public class RetrieveFrontPage {
                 PushShift pushShifts[] = new PushShift[10];
                 for(int i = 1; i <= 10; i++) {
                     String[] beforeAndAfter = getTimeStamp(i);
-                    PushShift push = getTopPostsFromTimeStamp(beforeAndAfter[0], beforeAndAfter[1]);
+                    PushShift push = getTopPostsFromTimeStamp(beforeAndAfter[0], beforeAndAfter[1], 0);
                     pushShifts[i - 1] = push;
                 }
 
@@ -76,6 +76,10 @@ public class RetrieveFrontPage {
                     for (int x = 1; x <= 10; x++) {
                         String[] beforeAndAfter = getTimeStamp(x);
                         PushShift push = pushShifts[x - 1];
+
+                        if(push == null) {
+                            continue;
+                        }
                         if (x == 1) {
                             initiatePosting(push, beforeAndAfter[2], "eddit" + x + "yearago", y);
                         } else {
@@ -104,7 +108,7 @@ public class RetrieveFrontPage {
                 date, push.getData().get(postIndex).getScore(), push.getData().get(postIndex).getTitle(), push.getData().get(postIndex).getSubreddit(), push.getData().get(postIndex).getOver18(), subreddit, reddit);
     }
 
-    public static PushShift getTopPostsFromTimeStamp(String before, String after) {
+    public static PushShift getTopPostsFromTimeStamp(String before, String after, int tryCount) {
         URL url = null;
         InputStreamReader reader = null;
         try {
@@ -114,6 +118,16 @@ public class RetrieveFrontPage {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
+            if(tryCount < 5) {
+                try {
+                    Thread.sleep(5000);
+                    return getTopPostsFromTimeStamp(before, after, tryCount + 1);
+                } catch (InterruptedException interruptedException) {
+                    interruptedException.printStackTrace();
+                }
+            } else {
+                return null;
+            }
         }
 
         return new Gson().fromJson(reader, PushShift.class);
