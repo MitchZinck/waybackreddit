@@ -2,8 +2,8 @@ plugins {
     id 'java'
 }
 
-group 'com.mzinck.waybackreddit'
-version '1.0'
+group 'org.example'
+version '1.0-SNAPSHOT'
 
 sourceCompatibility = 1.8
 

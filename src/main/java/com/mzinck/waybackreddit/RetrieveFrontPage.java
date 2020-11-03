@@ -7,6 +7,8 @@ import net.dean.jraw.RedditClient;
 import net.dean.jraw.http.NetworkAdapter;
 import net.dean.jraw.http.OkHttpNetworkAdapter;
 import net.dean.jraw.http.UserAgent;
+import net.dean.jraw.models.Comment;
+import net.dean.jraw.models.DistinguishedStatus;
 import net.dean.jraw.models.SubmissionKind;
 import net.dean.jraw.oauth.Credentials;
 import net.dean.jraw.oauth.OAuthHelper;
@@ -35,32 +37,71 @@ public class RetrieveFrontPage {
     public static String redditClientSecret;
 
     public static void main(String[] args) {
-        try {
-            System.setErr(new PrintStream(new File(System.getProperty("user.home")+"/waybackredditerror.log")));
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
-        setConfig();
-        for(int i = 1; i <= 10; i++) {
-            String[] beforeAndAfter = getTimeStamp(i);
-            PushShift push = getTopPostsFromTimeStamp(beforeAndAfter[0], beforeAndAfter[1]);
-            if(i == 1) {
-                initiatePosting(push, beforeAndAfter[2], "eddit" + i + "yearago");
-            } else {
-                initiatePosting(push, beforeAndAfter[2], "eddit" + i + "yearsago");
+        if(args[0].equals("production")) {
+            try {
+                System.setErr(new PrintStream(new File(System.getProperty("user.home") + "/waybackredditerror.log")));
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
             }
         }
+        setConfig();
+
+//        Thread waybackThread = new Thread(){
+//            public void run(){
+//                for(int i = 1; i <= 10; i++) {
+//                    String[] beforeAndAfter = getTimeStamp(i);
+//                    PushShift push = getTopPostsFromTimeStamp(beforeAndAfter[0], beforeAndAfter[1]);
+//                    initiatePosting(push, beforeAndAfter[2], "waybackreddit", 0);
+//                    initiatePosting(push, beforeAndAfter[2], "waybackreddit", 1);
+//                    try {
+//                        Thread.sleep(3600000);
+//                    } catch (InterruptedException e) {
+//                        e.printStackTrace();
+//                    }
+//                }
+//            }
+//        };
+//        waybackThread.start();
+
+        Thread redditYearsAgo = new Thread() {
+            public void run() {
+                PushShift pushShifts[] = new PushShift[10];
+                for(int i = 1; i <= 10; i++) {
+                    String[] beforeAndAfter = getTimeStamp(i);
+                    PushShift push = getTopPostsFromTimeStamp(beforeAndAfter[0], beforeAndAfter[1]);
+                    pushShifts[i - 1] = push;
+                }
+
+                for(int y = 0; y < 20; y++) {
+                    for (int x = 1; x <= 10; x++) {
+                        String[] beforeAndAfter = getTimeStamp(x);
+                        PushShift push = pushShifts[x - 1];
+                        if (x == 1) {
+                            initiatePosting(push, beforeAndAfter[2], "eddit" + x + "yearago", y);
+                        } else {
+                            initiatePosting(push, beforeAndAfter[2], "eddit" + x + "yearsago", y);
+                        }
+                    }
+                    try {
+                        Thread.sleep(1800000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        };
+        redditYearsAgo.start();
+
     }
 
-    public static void initiatePosting(PushShift push, String date, String subreddit) {
+    public static void initiatePosting(PushShift push, String date, String subreddit, int postIndex) {
         UserAgent userAgent = new UserAgent("SMBuilder", "com.mzinck.waybackreddit", "v0.1", "l_-_-_-_-_-_-_-_-_l");
         Credentials credentials = Credentials.script(redditUsername, redditPassword, redditClientId,
                 redditClientSecret); //clientid client secret
         NetworkAdapter adapter = new OkHttpNetworkAdapter(userAgent);
         RedditClient reddit = OAuthHelper.automatic(adapter, credentials);
-        for(int i = 0; i < push.getData().size(); i++) {
-            post("https://old.reddit.com" + push.getData().get(i).getPermalink(), date, push.getData().get(i).getScore(), push.getData().get(i).getTitle(), subreddit, reddit);
-        }
+        post("https://reddit.com" + push.getData().get(postIndex).getPermalink(), push.getData().get(postIndex).getUrl(),
+                date, push.getData().get(postIndex).getScore(), push.getData().get(postIndex).getTitle(), push.getData().get(postIndex).getSubreddit(), push.getData().get(postIndex).getOver18(), subreddit, reddit);
     }
 
     public static PushShift getTopPostsFromTimeStamp(String before, String after) {
@@ -90,20 +131,30 @@ public class RetrieveFrontPage {
         return new String[]{before, after, formattedString};
     }
 
-    public static void post(String url, String date, int upvotes, String title, String subreddit, RedditClient redditClient) {
-        if(title.length() > 250) {
-            title = title.substring(0, title.length() - 25);
+    public static void post(String permalink, String contentURL, String date, int upvotes, String title, String originalSubreddit, boolean isNsfw, String postSubreddit, RedditClient redditClient) {
+        if(title.length() > 280) {
+            title = title.substring(0, title.length() - (title.length() - 280));
             title += "....";
         }
         try {
-            SubmissionReference sub = redditClient.subreddit(subreddit).submit(SubmissionKind.LINK, "+" + upvotes + " [" + date + "] - \"" + title + "\"", url, false);
+            SubmissionReference sub = redditClient.subreddit(postSubreddit).submit(SubmissionKind.LINK,  "(+" + upvotes + ") "
+                    + title, contentURL, false);
+            Comment com = redditClient.submission(sub.getId()).reply("Date: " + date + "  \n" +
+                    "Title: " + title + "  \n" +
+                    "Upvotes: " + upvotes + "  \n" +
+                    "Original Post: " + permalink + "  \n" +
+                    "Web Archive: https://web.archive.org/web/" + permalink.replaceAll("//old\\.", "//") + "  \n" +
+                    "Subreddit: " + originalSubreddit + "  \n" +
+                    "NSFW: " + isNsfw + "  \n" +
+                    "If there are any issues with this post such as dead content please report the post or message the mods.");
+            redditClient.comment(com.getId()).distinguish(DistinguishedStatus.MODERATOR, true);
         } catch (ApiException e) {
             e.printStackTrace();
         }
     }
 
     public static void setConfig() {
-        File file = new File("C:\\Users\\Mitchell\\Desktop\\config.txt");
+        File file = new File(System.getProperty("user.home") + "/config.txt");
         try {
             Scanner scan = new Scanner(file);
             redditUsername = scan.nextLine();
