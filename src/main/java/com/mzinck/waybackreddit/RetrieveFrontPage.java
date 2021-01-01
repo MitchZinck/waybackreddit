@@ -104,7 +104,7 @@ public class RetrieveFrontPage {
                 redditClientSecret); //clientid client secret
         NetworkAdapter adapter = new OkHttpNetworkAdapter(userAgent);
         RedditClient reddit = OAuthHelper.automatic(adapter, credentials);
-        post("https://reddit.com" + push.getData().get(postIndex).getPermalink(), push.getData().get(postIndex).getUrl(),
+        post(push.getData().get(postIndex).getAuthor(),"https://reddit.com" + push.getData().get(postIndex).getPermalink(), push.getData().get(postIndex).getUrl(),
                 date, push.getData().get(postIndex).getScore(), push.getData().get(postIndex).getTitle(), push.getData().get(postIndex).getSubreddit(), push.getData().get(postIndex).getOver18(), subreddit, reddit);
     }
 
@@ -145,7 +145,7 @@ public class RetrieveFrontPage {
         return new String[]{before, after, formattedString};
     }
 
-    public static void post(String permalink, String contentURL, String date, int upvotes, String title, String originalSubreddit, boolean isNsfw, String postSubreddit, RedditClient redditClient) {
+    public static void post(String author, String permalink, String contentURL, String date, int upvotes, String title, String originalSubreddit, boolean isNsfw, String postSubreddit, RedditClient redditClient) {
         if(title.length() > 280) {
             title = title.substring(0, title.length() - (title.length() - 280));
             title += "....";
@@ -156,6 +156,7 @@ public class RetrieveFrontPage {
             Comment com = redditClient.submission(sub.getId()).reply("Date: " + date + "  \n" +
                     "Title: " + title + "  \n" +
                     "Upvotes: " + upvotes + "  \n" +
+                    "Author: " + author + "  \n" +
                     "Original Post: " + permalink + "  \n" +
                     "Web Archive: https://web.archive.org/web/" + permalink.replaceAll("//old\\.", "//") + "  \n" +
                     "Subreddit: " + originalSubreddit + "  \n" +
